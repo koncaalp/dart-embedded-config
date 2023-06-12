@@ -17,6 +17,7 @@ import 'build_exception.dart';
 import 'environment_provider.dart';
 import 'key_config.dart';
 import 'package:file/local.dart';
+import 'package:path/path.dart' as path;
 
 const _classAnnotationTypeChecker =
     source_gen.TypeChecker.fromRuntime(EmbeddedConfig);
@@ -36,6 +37,53 @@ class _AnnotatedClass {
   _AnnotatedClass(this.element, this.annotation, this.annotatedGetters);
 }
 
+List<String> searchDirectory(Directory directory, String targetFileName) {
+  List<String> paths = [];
+  var contents = directory.listSync(recursive: false, followLinks: false);
+  bool foundTarget = false;
+  String directoryPath;
+
+  for (FileSystemEntity entity in contents) {
+    if (entity is File && entity.path.endsWith(targetFileName)) {
+      directoryPath = path.dirname(entity.path);
+      print("Found target file: $directoryPath");
+      paths.add(directoryPath);
+      foundTarget = true;
+    } else if (entity is Directory) {
+      if (!foundTarget) {
+        List<String> pathsFromRecursion =
+            searchDirectory(entity, targetFileName);
+        paths.addAll(pathsFromRecursion);
+      } else {
+        foundTarget = false;
+      }
+    }
+  }
+  return paths;
+}
+
+List<String> getEnvs() {
+  List<String> envs = [];
+  String directoryPath = './assets';
+  String targetFilename = 'flavor.json';
+  Uri uri;
+  String flavor;
+  String env;
+  List<String> pathSegments;
+
+  final directory = Directory(directoryPath);
+  List<String> paths = searchDirectory(directory, targetFilename);
+  print(paths.toString());
+  for (String p in paths) {
+    uri = Uri.parse(p);
+    pathSegments = uri.pathSegments;
+    flavor = pathSegments[1];
+    env = pathSegments[2];
+    envs.add(env);
+  }
+  return envs;
+}
+
 class ConfigGenerator extends source_gen.Generator {
   final List<Map<String, KeyConfig>> _keysList;
   final EnvironmentProvider _environmentProvider;
@@ -48,16 +96,34 @@ class ConfigGenerator extends source_gen.Generator {
       : _keysList = _generateKeysList(config),
         _environmentProvider = environmentProvider;
 
-  static List<Map<String, KeyConfig>> _generateKeysList(Map<String, dynamic> config) {
+  static List<Map<String, KeyConfig>> _generateKeysList(
+      Map<String, dynamic> config) {
     final glob = Glob(config['configs']);
+    final envs = getEnvs();
     final matchedList = glob.listFileSystemSync(const LocalFileSystem());
-    final keysList = matchedList
-        .map((e) => {
-          // TODO better naming for out dir
-            basenameWithoutExtension(e.path): KeyConfig.fromBuildConfig(e.path,
-                  outDir: e.parent.path.replaceAll('assets', config['out_dir']))
-            })
-        .toList();
+    final keysList = matchedList.map((e) {
+      String outPath = e.parent.path;
+
+      for (String env in envs) {
+        if (outPath.contains('/$env/')) {
+          outPath = outPath.replaceAll('/$env/', '/$env/embedded/');
+          break;
+        }
+      }
+
+      outPath = outPath.replaceAll('assets', config['out_dir']);
+      File('debug.txt').writeAsStringSync('generateKeysList: $outPath',
+          mode: FileMode.append);
+
+      return {
+        basenameWithoutExtension(e.path):
+            KeyConfig.fromBuildConfig(e.path, outDir: outPath)
+      };
+    }).toList();
+
+    File('debug.txt')
+        .writeAsStringSync('envs: ${envs.toString()}', mode: FileMode.append);
+
     return keysList;
   }
 
@@ -79,18 +145,19 @@ class ConfigGenerator extends source_gen.Generator {
       final configName = basenameWithoutExtension(buildStep.inputId.path);
       final keyConfig = keys[configName] as KeyConfig?;
 
-      if(keyConfig != null) {
+      if (keyConfig != null) {
         try {
           final content = await _generate(library, buildStep, keys);
-          if(content != null) {
+          if (content != null) {
             final String outDir = keyConfig.outDir;
             final fileName = '$outDir/$configName.embedded.dart';
-            if(!File(fileName).existsSync()) {
+            if (!File(fileName).existsSync()) {
               File(fileName).createSync(recursive: true);
             }
-            File(fileName).writeAsStringSync(_formatContent(content, configName));
+            File(fileName)
+                .writeAsStringSync(_formatContent(content, configName));
           }
-        } on Exception catch(e) {
+        } on Exception catch (e) {
           print("Can't generate $configName for ${keyConfig.outDir} -  $e");
         }
       } else {
@@ -101,11 +168,12 @@ class ConfigGenerator extends source_gen.Generator {
     return null;
   }
 
-  FutureOr<String?> _generate(source_gen.LibraryReader library, BuildStep buildStep, Map<String, dynamic> keys)  async {
+  FutureOr<String?> _generate(source_gen.LibraryReader library,
+      BuildStep buildStep, Map<String, dynamic> keys) async {
     // Get annotated classes
     final sourceClasses = <_AnnotatedClass>[];
     final annotatedElements =
-    library.annotatedWith(_classAnnotationTypeChecker);
+        library.annotatedWith(_classAnnotationTypeChecker);
 
     for (final annotatedElement in annotatedElements) {
       final classElement = annotatedElement.element;
@@ -123,7 +191,7 @@ class ConfigGenerator extends source_gen.Generator {
 
       for (final accessor in classElement.accessors) {
         final annotation =
-        _getterNameAnnotationTypeChecker.firstAnnotationOf(accessor);
+            _getterNameAnnotationTypeChecker.firstAnnotationOf(accessor);
 
         if (annotation != null) {
           final reader = source_gen.ConstantReader(annotation);
@@ -189,12 +257,19 @@ class ConfigGenerator extends source_gen.Generator {
       path = pathReader.listValue.map((v) => v.toStringValue()!).toList();
     }
 
+    File('debug').writeAsStringSync(
+        'reconstructClassAnnotation: ${path.toString()}',
+        mode: FileMode.append);
+
     return EmbeddedConfig(key, path: path);
   }
 
   /// Resolves the config values for the given embedded config [annotation].
-  Future<Map<String, dynamic>> _resolveConfig(BuildStep buildStep,
-      ClassElement classElement, EmbeddedConfig annotation, Map<String, dynamic> keys) async {
+  Future<Map<String, dynamic>> _resolveConfig(
+      BuildStep buildStep,
+      ClassElement classElement,
+      EmbeddedConfig annotation,
+      Map<String, dynamic> keys) async {
     // Get the key config
     final KeyConfig? keyConfig = keys[annotation.key];
 
