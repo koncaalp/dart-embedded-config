@@ -64,20 +64,20 @@ List<String> searchDirectory(Directory directory, String targetFileName) {
 
 List<String> getEnvs() {
   List<String> envs = [];
-  String directoryPath = './assets';
-  String targetFilename = 'flavor.json';
+  final String directoryPath = './merged';
+  final String targetFilename = 'flavor.json';
   Uri uri;
-  String flavor;
+
   String env;
   List<String> pathSegments;
 
   final directory = Directory(directoryPath);
-  List<String> paths = searchDirectory(directory, targetFilename);
+  final List<String> paths = searchDirectory(directory, targetFilename);
   print(paths.toString());
   for (String p in paths) {
     uri = Uri.parse(p);
     pathSegments = uri.pathSegments;
-    flavor = pathSegments[1];
+
     env = pathSegments[2];
     envs.add(env);
   }
@@ -107,6 +107,7 @@ class ConfigGenerator extends source_gen.Generator {
       for (String env in envs) {
         if (outPath.contains('/$env/')) {
           outPath = outPath.replaceAll('/$env/', '/$env/embedded/');
+
           break;
         }
       }
