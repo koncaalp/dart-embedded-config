@@ -64,7 +64,7 @@ List<String> searchDirectory(Directory directory, String targetFileName) {
 
 List<String> getEnvs() {
   List<String> envs = [];
-  final String directoryPath = './merged';
+  final String directoryPath = './assets/merged';
   final String targetFilename = 'flavor.json';
   Uri uri;
 
@@ -78,7 +78,7 @@ List<String> getEnvs() {
     uri = Uri.parse(p);
     pathSegments = uri.pathSegments;
 
-    env = pathSegments[2];
+    env = pathSegments[3];
     envs.add(env);
   }
   return envs;
@@ -103,18 +103,21 @@ class ConfigGenerator extends source_gen.Generator {
     final matchedList = glob.listFileSystemSync(const LocalFileSystem());
     final keysList = matchedList.map((e) {
       String outPath = e.parent.path;
-
+      File('debug.txt')
+          .writeAsStringSync('envs: $envs\n', mode: FileMode.append);
       for (String env in envs) {
         if (outPath.contains('/$env/')) {
+          File('debug.txt')
+              .writeAsStringSync('before: $outPath\n', mode: FileMode.append);
           outPath = outPath.replaceAll('/$env/', '/$env/embedded/');
+          File('debug.txt')
+              .writeAsStringSync('after: $outPath\n', mode: FileMode.append);
 
           break;
         }
       }
 
-      outPath = outPath.replaceAll('assets', config['out_dir']);
-      File('debug.txt').writeAsStringSync('generateKeysList: $outPath',
-          mode: FileMode.append);
+      outPath = outPath.replaceAll('assets/merged', config['out_dir']);
 
       return {
         basenameWithoutExtension(e.path):
@@ -122,8 +125,8 @@ class ConfigGenerator extends source_gen.Generator {
       };
     }).toList();
 
-    File('debug.txt')
-        .writeAsStringSync('envs: ${envs.toString()}', mode: FileMode.append);
+    // File('debug.txt')
+    //     .writeAsStringSync('envs: ${envs.toString()}', mode: FileMode.append);
 
     return keysList;
   }
@@ -145,6 +148,8 @@ class ConfigGenerator extends source_gen.Generator {
     await Future.forEach(_keysList, (Map<String, dynamic> keys) async {
       final configName = basenameWithoutExtension(buildStep.inputId.path);
       final keyConfig = keys[configName] as KeyConfig?;
+      // File('debug.txt').writeAsStringSync('${keyConfig?.sources.toString()}\n',
+      //     mode: FileMode.append);
 
       if (keyConfig != null) {
         try {
@@ -155,8 +160,9 @@ class ConfigGenerator extends source_gen.Generator {
             if (!File(fileName).existsSync()) {
               File(fileName).createSync(recursive: true);
             }
+            final partOfName = '\'$configName.dart\'';
             File(fileName)
-                .writeAsStringSync(_formatContent(content, configName));
+                .writeAsStringSync(_formatContent(content, partOfName));
           }
         } on Exception catch (e) {
           print("Can't generate $configName for ${keyConfig.outDir} -  $e");
@@ -210,6 +216,10 @@ class ConfigGenerator extends source_gen.Generator {
     // Build classes
     final classes = <Class>[];
     final generatedClasses = <String>{};
+    // File('debug.txt')
+    //     .writeAsStringSync('${keys.toString()}\n', mode: FileMode.append);
+    // File('debug.txt').writeAsStringSync('${sourceClasses.toString()}\n',
+    //     mode: FileMode.append);
 
     for (final annotatedClass in sourceClasses) {
       // Resolve real config values
@@ -287,6 +297,9 @@ class ConfigGenerator extends source_gen.Generator {
       for (final filePath in keyConfig.sources!) {
         // Read file
         final assetId = AssetId(buildStep.inputId.package, filePath);
+        // File('debug.txt').writeAsStringSync('${assetId.path.toString()}\n',
+        //     mode: FileMode.append);
+
         final assetContents = await buildStep.readAsString(assetId);
 
         Map<String, dynamic> fileConfig;
