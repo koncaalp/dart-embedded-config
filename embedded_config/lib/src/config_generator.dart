@@ -38,20 +38,20 @@ class _AnnotatedClass {
 }
 
 List<String> searchDirectory(Directory directory, String targetFileName) {
-  List<String> paths = [];
-  var contents = directory.listSync(recursive: false, followLinks: false);
+  final List<String> paths = [];
+  final contents = directory.listSync(recursive: false, followLinks: false);
   bool foundTarget = false;
   String directoryPath;
 
   for (FileSystemEntity entity in contents) {
     if (entity is File && entity.path.endsWith(targetFileName)) {
       directoryPath = path.dirname(entity.path);
-      print("Found target file: $directoryPath");
+      print('Found target file: $directoryPath');
       paths.add(directoryPath);
       foundTarget = true;
     } else if (entity is Directory) {
       if (!foundTarget) {
-        List<String> pathsFromRecursion =
+        final List<String> pathsFromRecursion =
             searchDirectory(entity, targetFileName);
         paths.addAll(pathsFromRecursion);
       } else {
@@ -63,7 +63,7 @@ List<String> searchDirectory(Directory directory, String targetFileName) {
 }
 
 List<String> getEnvs() {
-  List<String> envs = [];
+  final List<String> envs = [];
   final String directoryPath = './assets/merged';
   final String targetFilename = 'flavor.json';
   Uri uri;
