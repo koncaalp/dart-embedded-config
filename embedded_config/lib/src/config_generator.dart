@@ -103,15 +103,10 @@ class ConfigGenerator extends source_gen.Generator {
     final matchedList = glob.listFileSystemSync(const LocalFileSystem());
     final keysList = matchedList.map((e) {
       String outPath = e.parent.path;
-      File('debug.txt')
-          .writeAsStringSync('envs: $envs\n', mode: FileMode.append);
+
       for (String env in envs) {
         if (outPath.contains('/$env/')) {
-          File('debug.txt')
-              .writeAsStringSync('before: $outPath\n', mode: FileMode.append);
           outPath = outPath.replaceAll('/$env/', '/$env/embedded/');
-          File('debug.txt')
-              .writeAsStringSync('after: $outPath\n', mode: FileMode.append);
 
           break;
         }
@@ -124,9 +119,6 @@ class ConfigGenerator extends source_gen.Generator {
             KeyConfig.fromBuildConfig(e.path, outDir: outPath)
       };
     }).toList();
-
-    // File('debug.txt')
-    //     .writeAsStringSync('envs: ${envs.toString()}', mode: FileMode.append);
 
     return keysList;
   }
@@ -148,8 +140,6 @@ class ConfigGenerator extends source_gen.Generator {
     await Future.forEach(_keysList, (Map<String, dynamic> keys) async {
       final configName = basenameWithoutExtension(buildStep.inputId.path);
       final keyConfig = keys[configName] as KeyConfig?;
-      // File('debug.txt').writeAsStringSync('${keyConfig?.sources.toString()}\n',
-      //     mode: FileMode.append);
 
       if (keyConfig != null) {
         try {
@@ -216,10 +206,6 @@ class ConfigGenerator extends source_gen.Generator {
     // Build classes
     final classes = <Class>[];
     final generatedClasses = <String>{};
-    // File('debug.txt')
-    //     .writeAsStringSync('${keys.toString()}\n', mode: FileMode.append);
-    // File('debug.txt').writeAsStringSync('${sourceClasses.toString()}\n',
-    //     mode: FileMode.append);
 
     for (final annotatedClass in sourceClasses) {
       // Resolve real config values
@@ -268,10 +254,6 @@ class ConfigGenerator extends source_gen.Generator {
       path = pathReader.listValue.map((v) => v.toStringValue()!).toList();
     }
 
-    File('debug').writeAsStringSync(
-        'reconstructClassAnnotation: ${path.toString()}',
-        mode: FileMode.append);
-
     return EmbeddedConfig(key, path: path);
   }
 
@@ -297,8 +279,6 @@ class ConfigGenerator extends source_gen.Generator {
       for (final filePath in keyConfig.sources!) {
         // Read file
         final assetId = AssetId(buildStep.inputId.package, filePath);
-        // File('debug.txt').writeAsStringSync('${assetId.path.toString()}\n',
-        //     mode: FileMode.append);
 
         final assetContents = await buildStep.readAsString(assetId);
 
