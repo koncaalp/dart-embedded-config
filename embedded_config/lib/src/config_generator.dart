@@ -84,6 +84,40 @@ List<String> getEnvs() {
   return envs;
 }
 
+Future<Map<String, dynamic>> updateCertValues(
+    Map<String, dynamic> maps, String parentPath) async {
+  for (var key in maps.keys) {
+    if (key == 'trustedSslServerCerts') {
+      String fileContent = '';
+      if (maps[key] is String) {
+        fileContent = await _readFileContent('$parentPath/${maps[key]}');
+        maps[key] = fileContent;
+      } else if (maps[key] is List) {
+        for (var i = 0; i < maps[key].length; i++) {
+          final String cert = maps[key][i];
+          fileContent = await _readFileContent('$parentPath/$cert');
+          maps[key][i] = fileContent;
+        }
+      } else {
+        throw (TypeError());
+      }
+    }
+    if (maps[key] is Map<String, dynamic>) {
+      await updateCertValues(maps[key], parentPath);
+    }
+  }
+  return maps;
+}
+
+Future<String> _readFileContent(String filename) async {
+  try {
+    return File(filename).readAsStringSync();
+  } on FileSystemException catch (e) {
+    print('Failed to read file: $filename');
+    return '';
+  }
+}
+
 class ConfigGenerator extends source_gen.Generator {
   final List<Map<String, KeyConfig>> _keysList;
   final EnvironmentProvider _environmentProvider;
@@ -320,6 +354,10 @@ class ConfigGenerator extends source_gen.Generator {
       }
     }
 
+    final String parentPath = path.dirname(keyConfig.sources![0]);
+
+    config = await updateCertValues(config, parentPath);
+
     return config;
   }
 
@@ -356,7 +394,6 @@ class ConfigGenerator extends source_gen.Generator {
 
     final getters = $class.accessors.where((accessor) =>
         accessor.isGetter && !accessor.isStatic && accessor.isAbstract);
-
     for (final getter in getters) {
       try {
         fields.add(_generateOverrideForGetter(
@@ -406,7 +443,6 @@ class ConfigGenerator extends source_gen.Generator {
     } else {
       key = customKey;
     }
-
     // Ensure non-null value provided for non-null field
     if (returnType.nullabilitySuffix == NullabilitySuffix.none &&
         returnType is! DynamicType &&
@@ -656,6 +692,7 @@ class ConfigGenerator extends source_gen.Generator {
 
   Code _codeLiteral(String? value) {
     if (value == null) return const Code('null');
+    value = value.replaceAll('\n', r'\n');
 
     return Code(value);
   }

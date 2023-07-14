@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'build_exception.dart';
 
 class KeyConfig {
@@ -14,6 +16,8 @@ class KeyConfig {
     if (config is String) {
       // Specified just a single file source
       sources = [config];
+      File('debug')
+          .writeAsStringSync('SOURCES: $sources\n', mode: FileMode.append);
     } else if (config is Map) {
       // Read the source config
       final source = config['source'];
