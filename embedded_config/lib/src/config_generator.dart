@@ -71,9 +71,11 @@ List<String> getEnvs() {
   String env;
   List<String> pathSegments;
 
+  File('debug').writeAsStringSync('GEtENVS\n', mode: FileMode.append);
+
   final directory = Directory(directoryPath);
   final List<String> paths = searchDirectory(directory, targetFilename);
-  print(paths.toString());
+  print('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA');
   for (String p in paths) {
     uri = Uri.parse(p);
     pathSegments = uri.pathSegments;
@@ -90,7 +92,7 @@ Future<Map<String, dynamic>> updateCertValues(
     if (key == 'trustedSslServerCerts') {
       String fileContent = '';
       if (maps[key] is String) {
-        fileContent = await _readFileContent('$parentPath/${maps[key]}');
+        // fileContent = await _readFileContent('$parentPath/${maps[key]}');
         maps[key] = fileContent;
       } else if (maps[key] is List) {
         for (var i = 0; i < maps[key].length; i++) {
@@ -106,6 +108,7 @@ Future<Map<String, dynamic>> updateCertValues(
       await updateCertValues(maps[key], parentPath);
     }
   }
+
   return maps;
 }
 
@@ -134,6 +137,7 @@ class ConfigGenerator extends source_gen.Generator {
       Map<String, dynamic> config) {
     final glob = Glob(config['configs']);
     final envs = getEnvs();
+
     final matchedList = glob.listFileSystemSync(const LocalFileSystem());
     final keysList = matchedList.map((e) {
       String outPath = e.parent.path;
@@ -141,7 +145,8 @@ class ConfigGenerator extends source_gen.Generator {
       for (String env in envs) {
         if (outPath.contains('/$env/')) {
           outPath = outPath.replaceAll('/$env/', '/$env/embedded/');
-
+          File('debug').writeAsStringSync('${outPath.toString()}\n',
+              mode: FileMode.append);
           break;
         }
       }
@@ -185,8 +190,13 @@ class ConfigGenerator extends source_gen.Generator {
               File(fileName).createSync(recursive: true);
             }
             final partOfName = '\'$configName.dart\'';
-            File(fileName)
-                .writeAsStringSync(_formatContent(content, partOfName));
+            try {
+              File(fileName)
+                  .writeAsStringSync(_formatContent(content, partOfName));
+            } catch (e) {
+              File('debug').writeAsStringSync('${e.toString()}\nOKUMA HATASI',
+                  mode: FileMode.append);
+            }
           }
         } on Exception catch (e) {
           print("Can't generate $configName for ${keyConfig.outDir} -  $e");
@@ -257,6 +267,20 @@ class ConfigGenerator extends source_gen.Generator {
       if ($class != null) {
         classes.add($class);
       }
+      /*try {
+        final $class = _generateClass(
+            annotatedClass.element,
+            annotatedClass.annotatedGetters,
+            config,
+            sourceClasses,
+            generatedClasses);
+        if ($class != null) {
+          classes.add($class);
+        }
+      } catch (e) {
+        File('debug').writeAsStringSync('${e.toString()}\nOKUMA HATASI',
+            mode: FileMode.append);
+      } */
     }
 
     // Check if any classes were generated
@@ -339,26 +363,34 @@ class ConfigGenerator extends source_gen.Generator {
     // Follow path if specified
     if (annotation.path != null) {
       for (final key in annotation.path!) {
-        if (config.containsKey(key)) {
-          if (config[key] == null) {
+        // Check if the key ends with '?'
+        final bool isNullable = key.endsWith('?');
+        final String cleanKey =
+            isNullable ? key.substring(0, key.length - 1) : key;
+
+        if (config.containsKey(cleanKey)) {
+          if (config[cleanKey] == null) {
             return {};
           } else {
-            config = config[key];
+            config = config[cleanKey];
           }
         } else {
-          throw BuildException(
-              "Could not follow path '${annotation.path}' for config "
-              '${annotation.key}.',
-              classElement);
+          if (isNullable) {
+            // If the key is nullable and does not exist, return null
+            return {};
+          } else {
+            throw BuildException(
+                "Could not follow path '${annotation.path}' for config "
+                '${annotation.key}.',
+                classElement);
+          }
         }
       }
     }
 
     final String parentPath = path.dirname(keyConfig.sources![0]);
 
-    config = await updateCertValues(config, parentPath);
-
-    return config;
+    return await updateCertValues(config, parentPath);
   }
 
   /// Merges the [top] map on top of the [base] map, overwriting values at the
@@ -624,7 +656,8 @@ class ConfigGenerator extends source_gen.Generator {
       value = value
           .replaceAll('\\', '\\\\')
           .replaceAll("'", "\\'")
-          .replaceAll(r'$', '\\\$');
+          .replaceAll(r'$', '\\\$')
+          .replaceAll(RegExp(r'\s+'), r'\n');
     }
 
     return "'$value'";
@@ -639,9 +672,10 @@ class ConfigGenerator extends source_gen.Generator {
         buffer.write(',');
       }
 
-      final element = value[i];
+      dynamic element = value[i];
 
       if (element is String) {
+        // element = element.replaceAll(RegExp(r'\s+'), r'\n');
         buffer.write(_makeStringLiteral(_checkEnvironmentVariable(element)));
       } else {
         if (forceStrings) {
@@ -692,7 +726,6 @@ class ConfigGenerator extends source_gen.Generator {
 
   Code _codeLiteral(String? value) {
     if (value == null) return const Code('null');
-    value = value.replaceAll('\n', r'\n');
 
     return Code(value);
   }
@@ -706,7 +739,8 @@ class ConfigGenerator extends source_gen.Generator {
   }
 
   String _formatContent(String content, String partOf) {
-    final formattedContent = '''
+    try {
+      final formattedContent = '''
       // GENERATED CODE - DO NOT MODIFY BY HAND
       
       part of $partOf;
@@ -718,6 +752,12 @@ class ConfigGenerator extends source_gen.Generator {
       $content
       ''';
 
-    return _formatter.format(formattedContent);
+      return _formatter.format(formattedContent);
+    } catch (e) {
+      File('debug').writeAsStringSync('${e.toString()}\nOKUMA HATASI',
+          mode: FileMode.append);
+
+      return '';
+    }
   }
 }
