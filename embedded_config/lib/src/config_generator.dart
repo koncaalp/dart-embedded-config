@@ -87,28 +87,45 @@ List<String> getEnvs() {
 }
 
 Future<Map<String, dynamic>> updateCertValues(
-    Map<String, dynamic> maps, String parentPath) async {
+    Map<String, dynamic> maps, String parentPath, List<String>? annotation,
+    {bool recursive = false}) async {
+  var lastPath = '';
+  if (annotation != null) {
+    lastPath = annotation.last;
+  }
   for (var key in maps.keys) {
-    if (key == 'trustedSslServerCerts') {
+    if (key == 'trustedSslServerCerts' ||
+        recursive ||
+        lastPath == 'trustedSslServerCerts') {
       String fileContent = '';
       if (maps[key] is String) {
-        // fileContent = await _readFileContent('$parentPath/${maps[key]}');
+        fileContent = await _readFileContent('$parentPath/${maps[key]}');
         maps[key] = fileContent;
+        // File('debug').writeAsStringSync('recursive: ${maps.toString()}\n',
+        //     mode: FileMode.append);
       } else if (maps[key] is List) {
         for (var i = 0; i < maps[key].length; i++) {
           final String cert = maps[key][i];
           fileContent = await _readFileContent('$parentPath/$cert');
           maps[key][i] = fileContent;
         }
+      } else if (maps[key] is Map<String, dynamic>) {
+        for (var innerKey in maps[key].keys) {
+          fileContent =
+              await _readFileContent('$parentPath/${maps[key][innerKey]}');
+          maps[key][innerKey] = fileContent;
+        }
       } else {
         throw (TypeError());
       }
     }
     if (maps[key] is Map<String, dynamic>) {
-      await updateCertValues(maps[key], parentPath);
+      await updateCertValues(maps[key], parentPath, annotation);
     }
   }
-
+  // File('debug').writeAsStringSync(
+  //     'START: ${parentPath.toString()} ${maps.toString()} -END\n\n\n\n',
+  //     mode: FileMode.append);
   return maps;
 }
 
@@ -145,8 +162,8 @@ class ConfigGenerator extends source_gen.Generator {
       for (String env in envs) {
         if (outPath.contains('/$env/')) {
           outPath = outPath.replaceAll('/$env/', '/$env/embedded/');
-          File('debug').writeAsStringSync('${outPath.toString()}\n',
-              mode: FileMode.append);
+          // File('debug').writeAsStringSync('${outPath.toString()}\n',
+          //     mode: FileMode.append);
           break;
         }
       }
@@ -183,6 +200,9 @@ class ConfigGenerator extends source_gen.Generator {
       if (keyConfig != null) {
         try {
           final content = await _generate(library, buildStep, keys);
+          File('debug').writeAsStringSync(
+              'START:  ${content.toString()} -END\n\n\n\n',
+              mode: FileMode.append);
           if (content != null) {
             final String outDir = keyConfig.outDir;
             final fileName = '$outDir/$configName.embedded.dart';
@@ -267,6 +287,7 @@ class ConfigGenerator extends source_gen.Generator {
       if ($class != null) {
         classes.add($class);
       }
+
       /*try {
         final $class = _generateClass(
             annotatedClass.element,
@@ -389,8 +410,12 @@ class ConfigGenerator extends source_gen.Generator {
     }
 
     final String parentPath = path.dirname(keyConfig.sources![0]);
-
-    return await updateCertValues(config, parentPath);
+    var conf = await updateCertValues(config, parentPath, annotation.path);
+    File('debug').writeAsStringSync(
+        'START: ${annotation.path.toString()} ${config.toString()} -END\n\n\n\n',
+        mode: FileMode.append);
+    return conf;
+    // return config;
   }
 
   /// Merges the [top] map on top of the [base] map, overwriting values at the
