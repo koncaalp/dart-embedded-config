@@ -71,11 +71,9 @@ List<String> getEnvs() {
   String env;
   List<String> pathSegments;
 
-  File('debug').writeAsStringSync('GEtENVS\n', mode: FileMode.append);
-
   final directory = Directory(directoryPath);
   final List<String> paths = searchDirectory(directory, targetFilename);
-  print('AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA');
+
   for (String p in paths) {
     uri = Uri.parse(p);
     pathSegments = uri.pathSegments;
@@ -101,8 +99,6 @@ Future<Map<String, dynamic>> updateCertValues(
       if (maps[key] is String) {
         fileContent = await _readFileContent('$parentPath/${maps[key]}');
         maps[key] = fileContent;
-        // File('debug').writeAsStringSync('recursive: ${maps.toString()}\n',
-        //     mode: FileMode.append);
       } else if (maps[key] is List) {
         for (var i = 0; i < maps[key].length; i++) {
           final String cert = maps[key][i];
@@ -123,9 +119,7 @@ Future<Map<String, dynamic>> updateCertValues(
       await updateCertValues(maps[key], parentPath, annotation);
     }
   }
-  // File('debug').writeAsStringSync(
-  //     'START: ${parentPath.toString()} ${maps.toString()} -END\n\n\n\n',
-  //     mode: FileMode.append);
+
   return maps;
 }
 
@@ -162,8 +156,7 @@ class ConfigGenerator extends source_gen.Generator {
       for (String env in envs) {
         if (outPath.contains('/$env/')) {
           outPath = outPath.replaceAll('/$env/', '/$env/embedded/');
-          // File('debug').writeAsStringSync('${outPath.toString()}\n',
-          //     mode: FileMode.append);
+
           break;
         }
       }
@@ -200,9 +193,7 @@ class ConfigGenerator extends source_gen.Generator {
       if (keyConfig != null) {
         try {
           final content = await _generate(library, buildStep, keys);
-          File('debug').writeAsStringSync(
-              'START:  ${content.toString()} -END\n\n\n\n',
-              mode: FileMode.append);
+
           if (content != null) {
             final String outDir = keyConfig.outDir;
             final fileName = '$outDir/$configName.embedded.dart';
@@ -214,8 +205,7 @@ class ConfigGenerator extends source_gen.Generator {
               File(fileName)
                   .writeAsStringSync(_formatContent(content, partOfName));
             } catch (e) {
-              File('debug').writeAsStringSync('${e.toString()}\nOKUMA HATASI',
-                  mode: FileMode.append);
+              print('${e.toString()}\nRead Error');
             }
           }
         } on Exception catch (e) {
@@ -287,21 +277,6 @@ class ConfigGenerator extends source_gen.Generator {
       if ($class != null) {
         classes.add($class);
       }
-
-      /*try {
-        final $class = _generateClass(
-            annotatedClass.element,
-            annotatedClass.annotatedGetters,
-            config,
-            sourceClasses,
-            generatedClasses);
-        if ($class != null) {
-          classes.add($class);
-        }
-      } catch (e) {
-        File('debug').writeAsStringSync('${e.toString()}\nOKUMA HATASI',
-            mode: FileMode.append);
-      } */
     }
 
     // Check if any classes were generated
@@ -410,12 +385,7 @@ class ConfigGenerator extends source_gen.Generator {
     }
 
     final String parentPath = path.dirname(keyConfig.sources![0]);
-    var conf = await updateCertValues(config, parentPath, annotation.path);
-    File('debug').writeAsStringSync(
-        'START: ${annotation.path.toString()} ${config.toString()} -END\n\n\n\n',
-        mode: FileMode.append);
-    return conf;
-    // return config;
+    return await updateCertValues(config, parentPath, annotation.path);
   }
 
   /// Merges the [top] map on top of the [base] map, overwriting values at the
@@ -779,8 +749,7 @@ class ConfigGenerator extends source_gen.Generator {
 
       return _formatter.format(formattedContent);
     } catch (e) {
-      File('debug').writeAsStringSync('${e.toString()}\nOKUMA HATASI',
-          mode: FileMode.append);
+      print('${e.toString()}\nRead Error');
 
       return '';
     }

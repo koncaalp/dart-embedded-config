@@ -15,13 +15,5 @@ import 'src/config_generator.dart';
 /// a part file will be emitted with the extension `.embedded.dart`
 /// in the same directory.
 Builder configBuilder(BuilderOptions options) {
-  File('debug').writeAsStringSync('DENEME\n', mode: FileMode.append);
-  print('DENEME');
-  print('DENEME');
-  print('DENEME');
-  print('DENEME');
-  print('DENEME');
-  print('DENEME');
-  print('DENEME');
   return PartBuilder([ConfigGenerator(options.config)], '.embedded.dart');
 }
